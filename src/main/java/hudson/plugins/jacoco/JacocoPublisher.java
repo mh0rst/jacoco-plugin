@@ -569,6 +569,12 @@ public class JacocoPublisher extends Recorder implements SimpleBuildStep {
 		return workspace.act(new ResolveDirPaths(input));
 	}
 
+    private FilePath[] resolveDirPaths(FilePath workspace,
+                                       TaskListener listener,
+                                       String input,
+                                       String exclusions) throws IOException, InterruptedException {
+        return workspace.act(new ResolveDirPaths(input, exclusions));
+    }
 
     @Override
     public void perform(@Nonnull Run<?, ?> run, @Nonnull FilePath filePath, @Nonnull Launcher launcher, @Nonnull TaskListener taskListener) throws InterruptedException, IOException {
@@ -612,7 +618,7 @@ public class JacocoPublisher extends Recorder implements SimpleBuildStep {
         logger.print("[JaCoCo plugin] Saving matched execfiles: ");
         reportDir.addExecFiles(matchedExecFiles);
         logger.print(" " + Util.join(matchedExecFiles," "));
-        FilePath[] matchedClassDirs = resolveDirPaths(filePath, taskListener, classPattern);
+        FilePath[] matchedClassDirs = resolveDirPaths(filePath, taskListener, classPattern, exclusionPattern);
         logger.print("\n[JaCoCo plugin] Saving matched class directories for class-pattern: " + classPattern + ": ");
         final String warning = "\n[JaCoCo plugin] WARNING: You are using directory patterns with trailing /, /* or /** . This will most likely" +
                 " multiply the copied files in your build directory. Check the list below and ignore this warning if you know what you are doing.";
@@ -848,9 +854,15 @@ public class JacocoPublisher extends Recorder implements SimpleBuildStep {
     private static class ResolveDirPaths extends MasterToSlaveFileCallable<FilePath[]> {
         static final long serialVersionUID = 1552178457453558870L;
         private final String input;
+        private final String excludes;
 
         public ResolveDirPaths(String input) {
+            this(input, null);
+        }
+
+        public ResolveDirPaths(String input, String exclusions) {
             this.input = input;
+            this.excludes = exclusions;
         }
 
         public FilePath[] invoke(File f, VirtualChannel channel) throws IOException {
@@ -860,6 +872,9 @@ public class JacocoPublisher extends Recorder implements SimpleBuildStep {
             DirectoryScanner ds = new DirectoryScanner();
 
             ds.setIncludes(includes);
+            if (excludes != null) {
+                ds.setExcludes(excludes.split(DIR_SEP));
+            }
             ds.setCaseSensitive(false);
             ds.setBasedir(f);
             ds.scan();
